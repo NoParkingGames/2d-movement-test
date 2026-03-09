@@ -1,5 +1,6 @@
 using UnityEngine;
-//taco bell is the best fast food restaurant in the world and if you disagree you are wrong and should feel bad about yourself
+using UnityEngine.InputSystem; // new Input System namespace
+
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
@@ -28,17 +29,40 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D rb;
 
     private float moveInput;
+    private bool jumpPressed;
     private bool isGrounded;
 
-    void Awake()
+    private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
     }
 
-    void Update()
+    // Called by the Input System
+    public void OnMove(InputAction.CallbackContext context)
     {
-        moveInput = Input.GetAxisRaw("Horizontal");
+        Vector2 input = context.ReadValue<Vector2>();
+        moveInput = input.x; // horizontal movement only
+    }
 
+    public void OnJump(InputAction.CallbackContext context)
+    {
+        if (context.started)
+        {
+            jumpPressed = true;
+            jumpBufferTimer = jumpBufferTime;
+        }
+        if (context.canceled)
+        {
+            // Variable jump height
+            if (rb.velocity.y > 0)
+            {
+                rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * jumpCutMultiplier);
+            }
+        }
+    }
+
+    private void Update()
+    {
         // Ground check
         isGrounded = Physics2D.OverlapCircle(
             groundCheck.position,
@@ -52,47 +76,38 @@ public class PlayerMovement : MonoBehaviour
         else
             coyoteTimer -= Time.deltaTime;
 
-        // Jump buffer
-        if (Input.GetButtonDown("Jump"))
-            jumpBufferTimer = jumpBufferTime;
-        else
+        // Jump buffer timer countdown
+        if (jumpBufferTimer > 0)
             jumpBufferTimer -= Time.deltaTime;
 
-        // Jump
+        // Perform jump
         if (jumpBufferTimer > 0 && coyoteTimer > 0)
         {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
-
+            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
             jumpBufferTimer = 0;
             coyoteTimer = 0;
         }
-
-        // Variable jump height
-        if (Input.GetButtonUp("Jump") && rb.linearVelocity.y > 0)
-        {
-            rb.linearVelocity = new Vector2(rb.linearVelocity.x, rb.linearVelocity.y * jumpCutMultiplier);
-        }
     }
 
-    void FixedUpdate()
+    private void FixedUpdate()
     {
         float targetSpeed = moveInput * moveSpeed;
         float accelRate = isGrounded ? acceleration : airAcceleration;
 
-        float speedDiff = targetSpeed - rb.linearVelocity.x;
+        float speedDiff = targetSpeed - rb.velocity.x;
         float movement = speedDiff * accelRate * Time.fixedDeltaTime;
 
-        rb.linearVelocity = new Vector2(rb.linearVelocity.x + movement, rb.linearVelocity.y);
+        rb.velocity = new Vector2(rb.velocity.x + movement, rb.velocity.y);
 
         // Deceleration when no input
         if (moveInput == 0 && isGrounded)
         {
-            float amount = Mathf.Min(Mathf.Abs(rb.linearVelocity.x), deceleration * Time.fixedDeltaTime);
-            rb.linearVelocity -= new Vector2(Mathf.Sign(rb.linearVelocity.x) * amount, 0);
+            float amount = Mathf.Min(Mathf.Abs(rb.velocity.x), deceleration * Time.fixedDeltaTime);
+            rb.velocity -= new Vector2(Mathf.Sign(rb.velocity.x) * amount, 0);
         }
     }
 
-    void OnDrawGizmosSelected()
+    private void OnDrawGizmosSelected()
     {
         if (groundCheck == null) return;
 
