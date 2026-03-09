@@ -29,7 +29,6 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D rb;
 
     private float moveInput; // Combined horizontal input
-    private bool jumpPressed; 
     private bool isGrounded;
 
     private void Awake()
@@ -58,7 +57,6 @@ public class PlayerMovement : MonoBehaviour
     {
         if (context.started)
         {
-            jumpPressed = true;
             jumpBufferTimer = jumpBufferTime;
         }
         if (context.canceled && rb.velocity.y > 0)
