@@ -11,7 +11,7 @@ public class PlayerMovement : MonoBehaviour
 
     [Header("Jump")]
     public float jumpForce = 12f;
-    public float jumpCutMultiplier = 0.5f;
+    [Range(0, 1)] public float jumpCutMultiplier = 0.5f;
 
     [Header("Coyote Time")]
     public float coyoteTime = 0.1f;
@@ -27,30 +27,16 @@ public class PlayerMovement : MonoBehaviour
     public LayerMask groundLayer;
 
     private Rigidbody2D rb;
-
-    private float moveInput; // horizontal input
+    private float moveInput; 
     private bool isGrounded;
 
-    private void Awake()
-    {
-        rb = GetComponent<Rigidbody2D>();
-    }
+    private void Awake() => rb = GetComponent<Rigidbody2D>();
 
-    // Called automatically by PlayerInput → Send Messages
-    public void OnMoveLeft(InputAction.CallbackContext context)
+    // Refined Input Handling
+    // Set your Action Type to "Value" and Control Type to "Axis" in the Input Action Asset
+    public void OnMove(InputAction.CallbackContext context)
     {
-        if (context.started || context.performed)
-            moveInput = -1f; // pressing left
-        else if (context.canceled)
-            moveInput = 0f;  // released left
-    }
-
-    public void OnMoveRight(InputAction.CallbackContext context)
-    {
-        if (context.started || context.performed)
-            moveInput = 1f;  // pressing right
-        else if (context.canceled)
-            moveInput = 0f;  // released right
+        moveInput = context.ReadValue<float>();
     }
 
     public void OnJump(InputAction.CallbackContext context)
@@ -64,17 +50,12 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
-        // Ground check
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
-        // Coyote time
+        // Timers
         coyoteTimer = isGrounded ? coyoteTime : coyoteTimer - Time.deltaTime;
+        jumpBufferTimer -= Time.deltaTime;
 
-        // Jump buffer countdown
-        if (jumpBufferTimer > 0)
-            jumpBufferTimer -= Time.deltaTime;
-
-        // Perform jump if buffered and on ground (or coyote)
         if (jumpBufferTimer > 0 && coyoteTimer > 0)
         {
             rb.velocity = new Vector2(rb.velocity.x, jumpForce);
@@ -85,19 +66,18 @@ public class PlayerMovement : MonoBehaviour
 
     private void FixedUpdate()
     {
+        // Calculate target velocity
         float targetSpeed = moveInput * moveSpeed;
+        
+        // Determine which acceleration to use
         float accelRate = isGrounded ? acceleration : airAcceleration;
-        float speedDiff = targetSpeed - rb.velocity.x;
-        float movement = speedDiff * accelRate * Time.fixedDeltaTime;
+        
+        // If we are trying to stop, use deceleration
+        if (Mathf.Abs(targetSpeed) < 0.01f) accelRate = deceleration;
 
-        rb.velocity = new Vector2(rb.velocity.x + movement, rb.velocity.y);
-
-        // Deceleration when no input
-        if (moveInput == 0 && isGrounded)
-        {
-            float amount = Mathf.Min(Mathf.Abs(rb.velocity.x), deceleration * Time.fixedDeltaTime);
-            rb.velocity -= new Vector2(Mathf.Sign(rb.velocity.x) * amount, 0);
-        }
+        // Apply movement using MoveTowards for precise control
+        float newX = Mathf.MoveTowards(rb.velocity.x, targetSpeed, accelRate * Time.fixedDeltaTime);
+        rb.velocity = new Vector2(newX, rb.velocity.y);
     }
 
     private void OnDrawGizmosSelected()
