@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[RequireComponent(typeof(Rigidbody2D))]
 public class PlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
@@ -12,16 +13,16 @@ public class PlayerMovement : MonoBehaviour
     [Header("Jump")]
     public float jumpForce = 12f;
     [Range(0, 1)] public float jumpCutMultiplier = 0.5f;
+    public float gravityScale = 3f; // Higher gravity feels "snappier"
+    public float fallGravityMultiplier = 1.5f;
 
-    [Header("Coyote Time")]
+    [Header("Timers")]
     public float coyoteTime = 0.1f;
-    private float coyoteTimer;
-
-    [Header("Jump Buffer")]
     public float jumpBufferTime = 0.1f;
+    private float coyoteTimer;
     private float jumpBufferTimer;
 
-    [Header("Ground Check")]
+    [Header("Detection")]
     public Transform groundCheck;
     public float groundCheckRadius = 0.2f;
     public LayerMask groundLayer;
@@ -29,53 +30,81 @@ public class PlayerMovement : MonoBehaviour
     private Rigidbody2D rb;
     private float moveInput; 
     private bool isGrounded;
+    private bool isJumping;
 
-    private void Awake() => rb = GetComponent<Rigidbody2D>();
-
-    // Refined Input Handling
-    // Set your Action Type to "Value" and Control Type to "Axis" in the Input Action Asset
-    public void OnMove(InputAction.CallbackContext context)
+    private void Awake() 
     {
-        moveInput = context.ReadValue<float>();
+        rb = GetComponent<Rigidbody2D>();
+        rb.gravityScale = gravityScale;
     }
+
+    public void OnMove(InputAction.CallbackContext context) => moveInput = context.ReadValue<float>();
 
     public void OnJump(InputAction.CallbackContext context)
     {
-        if (context.started)
-            jumpBufferTimer = jumpBufferTime;
+        if (context.started) jumpBufferTimer = jumpBufferTime;
 
         if (context.canceled && rb.velocity.y > 0)
+        {
             rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * jumpCutMultiplier);
+            coyoteTimer = 0; // Prevent double-jumping via coyote time
+        }
     }
 
     private void Update()
     {
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
-        // Timers
-        coyoteTimer = isGrounded ? coyoteTime : coyoteTimer - Time.deltaTime;
+        // Timer Management
+        if (isGrounded)
+        {
+            coyoteTimer = coyoteTime;
+        }
+        else
+        {
+            coyoteTimer -= Time.deltaTime;
+        }
+
         jumpBufferTimer -= Time.deltaTime;
 
-        if (jumpBufferTimer > 0 && coyoteTimer > 0)
+        // Jump Trigger
+        if (jumpBufferTimer > 0 && coyoteTimer > 0 && !isJumping)
         {
-            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
-            jumpBufferTimer = 0;
-            coyoteTimer = 0;
+            ExecuteJump();
+        }
+
+        // Reset jumping state when falling or grounded
+        if (isGrounded && rb.velocity.y <= 0) isJumping = false;
+        
+        // Better Falling: Apply more gravity when falling down
+        ModifyGravity();
+    }
+
+    private void ExecuteJump()
+    {
+        rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+        jumpBufferTimer = 0;
+        coyoteTimer = 0;
+        isJumping = true;
+    }
+
+    private void ModifyGravity()
+    {
+        if (rb.velocity.y < 0)
+        {
+            rb.gravityScale = gravityScale * fallGravityMultiplier;
+        }
+        else
+        {
+            rb.gravityScale = gravityScale;
         }
     }
 
     private void FixedUpdate()
     {
-        // Calculate target velocity
         float targetSpeed = moveInput * moveSpeed;
-        
-        // Determine which acceleration to use
-        float accelRate = isGrounded ? acceleration : airAcceleration;
-        
-        // If we are trying to stop, use deceleration
-        if (Mathf.Abs(targetSpeed) < 0.01f) accelRate = deceleration;
+        float accelRate = isGrounded ? (Mathf.Abs(targetSpeed) > 0.01f ? acceleration : deceleration) : airAcceleration;
 
-        // Apply movement using MoveTowards for precise control
         float newX = Mathf.MoveTowards(rb.velocity.x, targetSpeed, accelRate * Time.fixedDeltaTime);
         rb.velocity = new Vector2(newX, rb.velocity.y);
     }
