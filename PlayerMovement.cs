@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.UI; // Required for UI
 using System.Collections;
 
 [RequireComponent(typeof(Rigidbody2D))]
@@ -24,16 +25,21 @@ public class PlayerMovement : MonoBehaviour
     public float dashCooldown = 1f;
     private bool canDash = true;
     private bool isDashing;
+    private float dashCooldownTimer; // Track time for UI
+
+    [Header("UI")]
+    public Image dashCooldownFill; // Drag a UI Image here (Fill Method: Radial or Horizontal)
 
     [Header("Slide")]
     public float slideSpeedMultiplier = 1.5f;
     private bool isSliding;
+    private Vector3 originalVisualPos;
 
     [Header("Juice (Squash & Stretch)")]
     public Transform visualTransform;
     public float squashAmount = 0.7f;
     public float stretchAmount = 1.3f;
-    public float slideSquishAmount = 0.3f; // SUPER FLAT
+    public float slideSquishAmount = 0.3f; 
     public float effectDuration = 0.1f;
 
     [Header("Detection & Respawn")]
@@ -55,9 +61,9 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         checkpoint = transform.position;
         if (visualTransform == null) visualTransform = transform;
+        originalVisualPos = visualTransform.localPosition;
     }
 
-    // --- INPUT SYSTEM CALLBACKS ---
     public void OnMove(InputAction.CallbackContext context) => moveInput = context.ReadValue<float>();
 
     public void OnJump(InputAction.CallbackContext context)
@@ -69,7 +75,8 @@ public class PlayerMovement : MonoBehaviour
 
     public void OnDash(InputAction.CallbackContext context)
     {
-        if (context.started && canDash && !isDashing) StartCoroutine(Dash());
+        if (context.started && canDash && !isDashing && Mathf.Abs(moveInput) > 0.1f) 
+            StartCoroutine(Dash());
     }
 
     public void OnSlide(InputAction.CallbackContext context)
@@ -80,18 +87,18 @@ public class PlayerMovement : MonoBehaviour
 
     private void Update()
     {
+        UpdateDashUI(); // Handle the bar filling
+
         if (isDashing) return;
 
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
-        // Landings
         if (isGrounded && !wasGrounded)
         {
             jumpsLeft = maxJumps;
             if (!isSliding) StartCoroutine(ApplyVisualEffect(new Vector3(stretchAmount, squashAmount, 1f)));
         }
 
-        // Timers
         coyoteTimer = isGrounded ? 0.15f : coyoteTimer - Time.deltaTime;
         jumpBufferTimer -= Time.deltaTime;
 
@@ -102,6 +109,23 @@ public class PlayerMovement : MonoBehaviour
         
         wasGrounded = isGrounded;
         rb.gravityScale = (rb.velocity.y < 0) ? gravityScale * fallGravityMultiplier : gravityScale;
+    }
+
+    private void UpdateDashUI()
+    {
+        if (dashCooldownFill != null)
+        {
+            if (!canDash)
+            {
+                dashCooldownTimer += Time.deltaTime;
+                dashCooldownFill.fillAmount = dashCooldownTimer / dashCooldown;
+            }
+            else
+            {
+                dashCooldownFill.fillAmount = 1;
+                dashCooldownTimer = 0;
+            }
+        }
     }
 
     private void FixedUpdate()
@@ -116,7 +140,6 @@ public class PlayerMovement : MonoBehaviour
         rb.velocity = new Vector2(newX, rb.velocity.y);
     }
 
-    // --- MECHANICS ---
     private void ExecuteJump()
     {
         rb.velocity = new Vector2(rb.velocity.x, jumpForce);
@@ -134,13 +157,14 @@ public class PlayerMovement : MonoBehaviour
         float originalGravity = rb.gravityScale;
         rb.gravityScale = 0;
         
-        float dashDir = moveInput != 0 ? Mathf.Sign(moveInput) : transform.localScale.x;
-        rb.velocity = new Vector2(dashDir * dashForce, 0);
+        rb.velocity = new Vector2(Mathf.Sign(moveInput) * dashForce, 0);
 
         yield return new WaitForSeconds(dashDuration);
         
         rb.gravityScale = originalGravity;
         isDashing = false;
+        
+        // Cooldown starts here
         yield return new WaitForSeconds(dashCooldown);
         canDash = true;
     }
@@ -149,12 +173,15 @@ public class PlayerMovement : MonoBehaviour
     {
         isSliding = true;
         visualTransform.localScale = new Vector3(1.5f, slideSquishAmount, 1f);
+        float yOffset = (1f - slideSquishAmount) / 2f;
+        visualTransform.localPosition = new Vector3(originalVisualPos.x, originalVisualPos.y - yOffset, originalVisualPos.z);
     }
 
     private void StopSlide()
     {
         isSliding = false;
         visualTransform.localScale = Vector3.one;
+        visualTransform.localPosition = originalVisualPos;
     }
 
     public void Die()
