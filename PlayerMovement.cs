@@ -25,7 +25,7 @@ public class PlayerMovement : MonoBehaviour
     private float coyoteTimer;
     private float jumpBufferTimer;
 
-    [Header("Juice (Squash & Stretch)")]
+    [Header("Juice")]
     public Transform visualTransform; 
     public float squashAmount = 0.7f; 
     public float stretchAmount = 1.3f;
@@ -55,11 +55,7 @@ public class PlayerMovement : MonoBehaviour
 
     public void OnJump(InputAction.CallbackContext context)
     {
-        if (context.started)
-        {
-            jumpBufferTimer = jumpBufferTime;
-        }
-
+        if (context.started) jumpBufferTimer = jumpBufferTime;
         if (context.canceled && rb.velocity.y > 0)
         {
             rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * jumpCutMultiplier);
@@ -70,53 +66,33 @@ public class PlayerMovement : MonoBehaviour
     {
         isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
-        // Landing Logic
         if (isGrounded && !wasGrounded)
         {
-            StopAllCoroutines(); // Stop any current squash/stretch before starting a new one
+            StopAllCoroutines();
             StartCoroutine(ApplyVisualEffect(new Vector3(stretchAmount, squashAmount, 1f)));
             jumpsLeft = maxJumps; 
         }
 
-        // Coyote Time
-        if (isGrounded)
-        {
-            coyoteTimer = coyoteTime;
-        }
-        else
-        {
-            coyoteTimer -= Time.deltaTime;
-        }
-
+        coyoteTimer = isGrounded ? coyoteTime : coyoteTimer - Time.deltaTime;
         jumpBufferTimer -= Time.deltaTime;
 
-        // Jump Logic
         if (jumpBufferTimer > 0)
         {
-            // Can jump if grounded (Coyote Time) OR if we have double jumps left
-            if (coyoteTimer > 0 || (jumpsLeft > 1))
-            {
-                ExecuteJump();
-            }
-            // Special case: if we are in the air and have exactly 1 jump left (the double jump)
-            else if (jumpsLeft == 1 && !isGrounded)
+            if (coyoteTimer > 0 || jumpsLeft > 1 || (jumpsLeft == 1 && !isGrounded))
             {
                 ExecuteJump();
             }
         }
 
         wasGrounded = isGrounded;
-        ModifyGravity();
+        rb.gravityScale = (rb.velocity.y < 0) ? gravityScale * fallGravityMultiplier : gravityScale;
     }
 
     private void ExecuteJump()
     {
-        // Reset Y velocity for consistent double jump height
         rb.velocity = new Vector2(rb.velocity.x, jumpForce);
-        
         StopAllCoroutines();
         StartCoroutine(ApplyVisualEffect(new Vector3(squashAmount, stretchAmount, 1f)));
-
         jumpsLeft--;
         jumpBufferTimer = 0;
         coyoteTimer = 0;
@@ -125,8 +101,6 @@ public class PlayerMovement : MonoBehaviour
     private IEnumerator ApplyVisualEffect(Vector3 targetScale)
     {
         float elapsed = 0;
-        Vector3 initialScale = visualTransform.localScale;
-
         while (elapsed < effectDuration)
         {
             elapsed += Time.deltaTime;
@@ -136,23 +110,11 @@ public class PlayerMovement : MonoBehaviour
         visualTransform.localScale = Vector3.one;
     }
 
-    private void ModifyGravity()
-    {
-        rb.gravityScale = (rb.velocity.y < 0) ? gravityScale * fallGravityMultiplier : gravityScale;
-    }
-
     private void FixedUpdate()
     {
         float targetSpeed = moveInput * moveSpeed;
         float accelRate = isGrounded ? (Mathf.Abs(targetSpeed) > 0.01f ? acceleration : deceleration) : airAcceleration;
         float newX = Mathf.MoveTowards(rb.velocity.x, targetSpeed, accelRate * Time.fixedDeltaTime);
         rb.velocity = new Vector2(newX, rb.velocity.y);
-    }
-
-    private void OnDrawGizmosSelected()
-    {
-        if (groundCheck == null) return;
-        Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
     }
 }
