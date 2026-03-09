@@ -1,4 +1,4 @@
-# 2d-movement-test-
+# 2d-movement-test
 aka
 # 🚀 Advanced 2D Unity Player Controller
 
