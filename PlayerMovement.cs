@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.InputSystem; // New Input System namespace
+using UnityEngine.InputSystem;
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -28,7 +28,7 @@ public class PlayerMovement : MonoBehaviour
 
     private Rigidbody2D rb;
 
-    private float moveInput; // Combined horizontal input
+    private float moveInput; // horizontal input
     private bool isGrounded;
 
     private void Awake()
@@ -40,46 +40,35 @@ public class PlayerMovement : MonoBehaviour
     public void OnMoveLeft(InputAction.CallbackContext context)
     {
         if (context.started || context.performed)
-            moveInput = -1f; // Pressing A
+            moveInput = -1f; // pressing left
         else if (context.canceled)
-            moveInput = 0f;  // Released A
+            moveInput = 0f;  // released left
     }
 
     public void OnMoveRight(InputAction.CallbackContext context)
     {
         if (context.started || context.performed)
-            moveInput = 1f;  // Pressing D
+            moveInput = 1f;  // pressing right
         else if (context.canceled)
-            moveInput = 0f;  // Released D
+            moveInput = 0f;  // released right
     }
 
     public void OnJump(InputAction.CallbackContext context)
     {
         if (context.started)
-        {
             jumpBufferTimer = jumpBufferTime;
-        }
+
         if (context.canceled && rb.velocity.y > 0)
-        {
-            // Variable jump height
             rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * jumpCutMultiplier);
-        }
     }
 
     private void Update()
     {
         // Ground check
-        isGrounded = Physics2D.OverlapCircle(
-            groundCheck.position,
-            groundCheckRadius,
-            groundLayer
-        );
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
         // Coyote time
-        if (isGrounded)
-            coyoteTimer = coyoteTime;
-        else
-            coyoteTimer -= Time.deltaTime;
+        coyoteTimer = isGrounded ? coyoteTime : coyoteTimer - Time.deltaTime;
 
         // Jump buffer countdown
         if (jumpBufferTimer > 0)
@@ -98,7 +87,6 @@ public class PlayerMovement : MonoBehaviour
     {
         float targetSpeed = moveInput * moveSpeed;
         float accelRate = isGrounded ? acceleration : airAcceleration;
-
         float speedDiff = targetSpeed - rb.velocity.x;
         float movement = speedDiff * accelRate * Time.fixedDeltaTime;
 
@@ -115,7 +103,6 @@ public class PlayerMovement : MonoBehaviour
     private void OnDrawGizmosSelected()
     {
         if (groundCheck == null) return;
-
         Gizmos.color = Color.red;
         Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
     }
