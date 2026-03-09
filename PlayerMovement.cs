@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.InputSystem; // new Input System namespace
+using UnityEngine.InputSystem; // New Input System namespace
 
 public class PlayerMovement : MonoBehaviour
 {
@@ -28,8 +28,8 @@ public class PlayerMovement : MonoBehaviour
 
     private Rigidbody2D rb;
 
-    private float moveInput;
-    private bool jumpPressed;
+    private float moveInput; // Combined horizontal input
+    private bool jumpPressed; 
     private bool isGrounded;
 
     private void Awake()
@@ -37,11 +37,21 @@ public class PlayerMovement : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
     }
 
-    // Called by the Input System
-    public void OnMove(InputAction.CallbackContext context)
+    // Called automatically by PlayerInput → Send Messages
+    public void OnMoveLeft(InputAction.CallbackContext context)
     {
-        Vector2 input = context.ReadValue<Vector2>();
-        moveInput = input.x; // horizontal movement only
+        if (context.started || context.performed)
+            moveInput = -1f; // Pressing A
+        else if (context.canceled)
+            moveInput = 0f;  // Released A
+    }
+
+    public void OnMoveRight(InputAction.CallbackContext context)
+    {
+        if (context.started || context.performed)
+            moveInput = 1f;  // Pressing D
+        else if (context.canceled)
+            moveInput = 0f;  // Released D
     }
 
     public void OnJump(InputAction.CallbackContext context)
@@ -51,13 +61,10 @@ public class PlayerMovement : MonoBehaviour
             jumpPressed = true;
             jumpBufferTimer = jumpBufferTime;
         }
-        if (context.canceled)
+        if (context.canceled && rb.velocity.y > 0)
         {
             // Variable jump height
-            if (rb.velocity.y > 0)
-            {
-                rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * jumpCutMultiplier);
-            }
+            rb.velocity = new Vector2(rb.velocity.x, rb.velocity.y * jumpCutMultiplier);
         }
     }
 
@@ -76,11 +83,11 @@ public class PlayerMovement : MonoBehaviour
         else
             coyoteTimer -= Time.deltaTime;
 
-        // Jump buffer timer countdown
+        // Jump buffer countdown
         if (jumpBufferTimer > 0)
             jumpBufferTimer -= Time.deltaTime;
 
-        // Perform jump
+        // Perform jump if buffered and on ground (or coyote)
         if (jumpBufferTimer > 0 && coyoteTimer > 0)
         {
             rb.velocity = new Vector2(rb.velocity.x, jumpForce);
